@@ -9,16 +9,108 @@ from supabase import create_client, Client
 import datetime
 import os
 
-# Seitenkonfiguration
+# Seitenkonfiguration mit Dark Mode
 st.set_page_config(
     page_title="Fundbüro - KI-Erkennung",
     page_icon="🔍",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="collapsed"
 )
+
+# Dark Mode CSS
+st.markdown("""
+<style>
+    /* Dark Mode Styles */
+    .stApp {
+        background-color: #0e1117;
+        color: #fafafa;
+    }
+    
+    /* Admin Panel Styling */
+    .admin-panel {
+        background-color: #1e1e1e;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        border: 1px solid #333;
+        margin-bottom: 1rem;
+    }
+    
+    .admin-header {
+        color: #ff6b6b;
+        font-size: 1.2rem;
+        font-weight: bold;
+        margin-bottom: 0.5rem;
+    }
+    
+    /* Fundstück Cards */
+    .fund-card {
+        background-color: #1e1e1e;
+        border: 1px solid #333;
+    }
+    
+    /* Buttons */
+    .stButton button {
+        background-color: #2e2e2e;
+        color: #fafafa;
+        border: 1px solid #444;
+    }
+    
+    .stButton button:hover {
+        background-color: #3e3e3e;
+        border-color: #666;
+    }
+    
+    /* Delete Button */
+    .delete-btn button {
+        background-color: #ff4444;
+        color: white;
+    }
+    
+    .delete-btn button:hover {
+        background-color: #ff6666;
+    }
+    
+    /* Edit Button */
+    .edit-btn button {
+        background-color: #4444ff;
+        color: white;
+    }
+    
+    .edit-btn button:hover {
+        background-color: #6666ff;
+    }
+    
+    /* Input Fields */
+    .stTextInput input, .stTextArea textarea, .stSelectbox select {
+        background-color: #2e2e2e;
+        color: #fafafa;
+        border-color: #444;
+    }
+    
+    /* Tabs */
+    .stTabs [data-baseweb="tab-list"] {
+        background-color: #1e1e1e;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        color: #fafafa;
+    }
+    
+    /* Success/Error/Warning Messages */
+    .stSuccess, .stError, .stWarning {
+        background-color: #1e1e1e;
+        border-color: #444;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 # Supabase-Konfiguration (ersetze mit deinen Zugangsdaten)
 SUPABASE_URL = "https://imntylvenimvnmocbtzy.supabase.co"
 SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImltbnR5bHZlbmltdm5tb2NidHp5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMwNTk4NzcsImV4cCI6MjA4ODYzNTg3N30.48pIBqUdlqXTooorJXHm71icVSj1wdTwW4tg5m2ovns"
+
+# Admin Passwörter
+DELETE_PASSWORD = "6767"
+EDIT_PASSWORD = "timgioh"
 
 # Initialisiere Supabase Client
 @st.cache_resource
@@ -95,7 +187,7 @@ def save_to_supabase(supabase, image, class_name, confidence_score, description,
         # Datensatz in der Datenbank erstellen
         data = {
             "class_name": class_name,
-            "class_index": int(confidence_score * 100),  # Speichere Konfidenz als Integer
+            "class_index": int(confidence_score * 100),
             "confidence_score": confidence_score,
             "description": description,
             "location": location,
@@ -109,6 +201,24 @@ def save_to_supabase(supabase, image, class_name, confidence_score, description,
         return True, result
     except Exception as e:
         st.error(f"Fehler beim Speichern in Supabase: {e}")
+        return False, None
+
+# Fundstück löschen
+def delete_fundstueck(supabase, item_id):
+    try:
+        result = supabase.table("fundstuecke").delete().eq("id", item_id).execute()
+        return True, result
+    except Exception as e:
+        st.error(f"Fehler beim Löschen: {e}")
+        return False, None
+
+# Fundstück bearbeiten
+def update_fundstueck(supabase, item_id, updated_data):
+    try:
+        result = supabase.table("fundstuecke").update(updated_data).eq("id", item_id).execute()
+        return True, result
+    except Exception as e:
+        st.error(f"Fehler beim Bearbeiten: {e}")
         return False, None
 
 # Fundstücke aus Supabase abrufen
@@ -128,6 +238,32 @@ def get_fundstuecke(supabase, filter_class=None, search_term=None):
         st.error(f"Fehler beim Abrufen der Fundstücke: {e}")
         return []
 
+# Admin Panel
+def show_admin_panel(supabase):
+    with st.expander("👨‍🏫 Admin-Panel (Lehrer)", expanded=False):
+        st.markdown('<div class="admin-panel">', unsafe_allow_html=True)
+        st.markdown('<div class="admin-header">🔐 Admin-Bereich</div>', unsafe_allow_html=True)
+        
+        admin_password = st.text_input("Admin-Passwort", type="password", key="admin_password")
+        
+        if admin_password == DELETE_PASSWORD:
+            st.success("✅ Lösch-Modus aktiviert")
+            st.session_state['admin_mode'] = 'delete'
+            st.session_state['edit_mode'] = False
+        elif admin_password == EDIT_PASSWORD:
+            st.success("✅ Bearbeiten-Modus aktiviert")
+            st.session_state['admin_mode'] = 'edit'
+            st.session_state['edit_mode'] = True
+        elif admin_password:
+            st.error("❌ Falsches Passwort")
+            st.session_state['admin_mode'] = None
+            st.session_state['edit_mode'] = False
+        
+        if 'admin_mode' in st.session_state and st.session_state['admin_mode']:
+            st.info(f"Aktiver Modus: **{st.session_state['admin_mode']}**")
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+
 # Haupt-App
 def main():
     st.title("🔍 KI-Fundbüro")
@@ -136,6 +272,9 @@ def main():
     # Supabase und Modell initialisieren
     supabase = init_supabase()
     model, class_names = load_keras_model()
+    
+    # Admin Panel anzeigen
+    show_admin_panel(supabase)
     
     if model is None or class_names is None:
         st.error("Das KI-Modell konnte nicht geladen werden. Bitte überprüfe die Dateien 'keras_Model.h5' und 'labels.txt'.")
@@ -272,6 +411,58 @@ def main():
                             st.caption("🟡 Noch nicht abgeholt")
                         else:
                             st.caption("✅ Bereits abgeholt")
+                        
+                        # Admin-Funktionen (Löschen/Bearbeiten)
+                        if 'admin_mode' in st.session_state:
+                            col_del, col_edit = st.columns(2)
+                            
+                            # Löschen-Button (nur mit Passwort 6767)
+                            with col_del:
+                                if st.session_state['admin_mode'] == 'delete':
+                                    if st.button(f"🗑️ Löschen", key=f"del_{fund['id']}", use_container_width=True):
+                                        success, _ = delete_fundstueck(supabase, fund['id'])
+                                        if success:
+                                            st.success("✅ Gelöscht!")
+                                            st.rerun()
+                            
+                            # Bearbeiten-Button (nur mit Passwort timgioh)
+                            with col_edit:
+                                if st.session_state['admin_mode'] == 'edit':
+                                    if st.button(f"✏️ Bearbeiten", key=f"edit_{fund['id']}", use_container_width=True):
+                                        st.session_state['editing_item'] = fund
+                                        st.rerun()
+                        
+                        # Bearbeitungsformular anzeigen
+                        if 'editing_item' in st.session_state and st.session_state['editing_item']['id'] == fund['id']:
+                            with st.form(key=f"edit_form_{fund['id']}"):
+                                st.markdown("### ✏️ Eintrag bearbeiten")
+                                
+                                new_description = st.text_area("Beschreibung", value=fund['description'])
+                                new_location = st.text_input("Fundort", value=fund['location'])
+                                new_finder = st.text_input("Finder", value=fund['finder_name'])
+                                new_status = st.selectbox("Status", ["gemeldet", "abgeholt"], 
+                                                         index=0 if fund['status'] == 'gemeldet' else 1)
+                                
+                                col_save, col_cancel = st.columns(2)
+                                
+                                with col_save:
+                                    if st.form_submit_button("💾 Speichern"):
+                                        updated_data = {
+                                            "description": new_description,
+                                            "location": new_location,
+                                            "finder_name": new_finder,
+                                            "status": new_status
+                                        }
+                                        success, _ = update_fundstueck(supabase, fund['id'], updated_data)
+                                        if success:
+                                            st.success("✅ Aktualisiert!")
+                                            del st.session_state['editing_item']
+                                            st.rerun()
+                                
+                                with col_cancel:
+                                    if st.form_submit_button("❌ Abbrechen"):
+                                        del st.session_state['editing_item']
+                                        st.rerun()
         else:
             st.info("😕 Keine Fundstücke gefunden. Versuche andere Suchbegriffe oder lade ein neues Fundstück hoch!")
 
