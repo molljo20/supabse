@@ -146,7 +146,7 @@ EDIT_PASSWORD = "timgioh"
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
 SMTP_USERNAME = "ohtimgi@gmail.com"
-SMTP_PASSWORD = "choupo13"
+SMTP_PASSWORD = "ftqz vujw skbl bblu"
 
 # Initialisiere Supabase Client
 @st.cache_resource
